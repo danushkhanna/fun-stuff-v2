@@ -271,7 +271,32 @@ if input_url != "":
             except Exception as e:
                 st.error(f"MISP lookup failed: {str(e)}")
 
-                
+    # URL Status Check and Brute Force
+    final_url = input_url
+    if input_url.endswith("404/"):
+        final_url = input_url.rsplit("404/", 1)[0]
+        st.write(f"{input_url} - Removed '404/': {final_url}")
+
+    response = requests.get(final_url)
+    if response.status_code == 200:
+        st.write(f"{final_url} Status: 200 (OK) - The website is live and running")
+    else:
+        st.write(f"{final_url} Status: {response.status_code} - The website may have issues")
+
+    if check_404(final_url):
+        st.write(f"{final_url} Status: 404 (Not Found) - Initiating Brute Force")
+        possible_urls = brute_force_url(final_url)
+        if possible_urls:
+            final_url = possible_urls[0]
+            st.write(f"Brute-forced URL: {final_url}")
+        else:
+            st.write("No valid URLs found based on the wordlist")
+
+except requests.RequestException as e:
+    st.write(f"Connection error: {str(e)}")
+except Exception as e:
+    st.error(f"An error occurred: {str(e)}")
+
     # Function to brute force valid URLs
     def brute_force_url(base_url):
         # This is a simple wordlist for the sake of demonstration.
