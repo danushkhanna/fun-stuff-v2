@@ -212,6 +212,9 @@ def discover_subdomains(domain):
 # Takes in user input
 input_url = st.text_area("Enter URL, IP, Domain, or Email for security analysis:")
 if input_url != "":
+    # Extract features from the URL
+    features_url = ExtractFeatures().url_to_features(url=input_url)
+    
     # Extract domain for DNS analysis
     try:
         parsed_url = urllib.parse.urlparse(input_url)
@@ -268,8 +271,7 @@ if input_url != "":
             except Exception as e:
                 st.error(f"MISP lookup failed: {str(e)}")
 
-    features_url = ExtractFeatures().url_to_features(url=input_url)
-
+                
     # Function to brute force valid URLs
     def brute_force_url(base_url):
         # This is a simple wordlist for the sake of demonstration.
