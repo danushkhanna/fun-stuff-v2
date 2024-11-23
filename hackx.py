@@ -217,59 +217,58 @@ if input_url != "":
     
     # Extract domain for DNS analysis
     try:
-        parsed_url = urllib.parse.urlparse(input_url)
-        domain = parsed_url.netloc if parsed_url.netloc else input_url.split('/')[0]
+    parsed_url = urllib.parse.urlparse(input_url)
+    domain = parsed_url.netloc if parsed_url.netloc else input_url.split('/')[0]
+    
+    # DNSDumpster Analysis
+    st.write("🔍 Performing DNS enumeration...")
+    dns_data = query_dnsdumpster(domain)
+    if dns_data:
+        findings = analyze_dns_data(dns_data)
         
-        # DNSDumpster Analysis
-        st.write("🔍 Performing DNS enumeration...")
-        dns_data = query_dnsdumpster(domain)
-        if dns_data:
-            findings = analyze_dns_data(dns_data)
-            
-            if findings['subdomains']:
-                st.write("📡 Discovered Subdomains:")
-                for subdomain in findings['subdomains']:
-                    st.write(f"- {subdomain}")
-                    
-            if findings['ip_addresses']:
-                st.write("🌐 Associated IP Addresses:")
-                for ip in findings['ip_addresses']:
-                    st.write(f"- {ip}")
-                    
-            if findings['potential_apis']:
-                st.write("🔌 Potential API Endpoints:")
-                for api in findings['potential_apis']:
-                    st.write(f"- {api}")
-                    
-                    # Additional API endpoint fuzzing
-                    api_results = test_api_endpoints(api)
-                    if api_results:
-                        st.write("  Found active endpoints:")
-                        for endpoint in api_results:
-                            st.write(f"  - {endpoint}")
-
-        # Initialize MISP
-        misp = initialize_misp()
-        
-        # MISP Threat Intelligence Check
-        if misp:
-            st.write("Checking MISP threat intelligence database...")
-            try:
-                input_type = identify_input_type(input_url)
-                results = misp.search(controller='attributes', value=input_url, type=input_type)
+        if findings['subdomains']:
+            st.write("📡 Discovered Subdomains:")
+            for subdomain in findings['subdomains']:
+                st.write(f"- {subdomain}")
                 
-                if results:
-                    st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
-                    for result in results:
-                        if 'Event' in result:
-                            st.write(f"- Event ID: {result['Event']['id']}")
-                            st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
-                            st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
-                            st.write("---")
-                else:
-                    st.success("✅ No matches found in MISP database")
-            except Exception as e:
-                st.error(f"MISP lookup failed: {str(e)}")
+        if findings['ip_addresses']:
+            st.write("🌐 Associated IP Addresses:")
+            for ip in findings['ip_addresses']:
+                st.write(f"- {ip}")
+                
+        if findings['potential_apis']:
+            st.write("🔌 Potential API Endpoints:")
+            for api in findings['potential_apis']:
+                st.write(f"- {api}")
+                # Additional API endpoint fuzzing
+                api_results = test_api_endpoints(api)
+                if api_results:
+                    st.write("  Found active endpoints:")
+                    for endpoint in api_results:
+                        st.write(f"  - {endpoint}")
+
+    # Initialize MISP
+    misp = initialize_misp()
+    
+    # MISP Threat Intelligence Check
+    if misp:
+        st.write("Checking MISP threat intelligence database...")
+        try:
+            input_type = identify_input_type(input_url)
+            results = misp.search(controller='attributes', value=input_url, type=input_type)
+            
+            if results:
+                st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
+                for result in results:
+                    if 'Event' in result:
+                        st.write(f"- Event ID: {result['Event']['id']}")
+                        st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
+                        st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
+                        st.write("---")
+            else:
+                st.success("✅ No matches found in MISP database")
+        except Exception as e:
+            st.error(f"MISP lookup failed: {str(e)}")
 
     # URL Status Check and Brute Force
     final_url = input_url
