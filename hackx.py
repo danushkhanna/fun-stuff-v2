@@ -237,6 +237,7 @@ if input_url != "":
                 st.write("🔌 Potential API Endpoints:")
                 for api in findings['potential_apis']:
                     st.write(f"- {api}")
+                    
                     # Additional API endpoint fuzzing
                     api_results = test_api_endpoints(api)
                     if api_results:
