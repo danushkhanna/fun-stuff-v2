@@ -217,84 +217,84 @@ if input_url != "":
     
     # Extract domain for DNS analysis
     try:
-    parsed_url = urllib.parse.urlparse(input_url)
-    domain = parsed_url.netloc if parsed_url.netloc else input_url.split('/')[0]
+        parsed_url = urllib.parse.urlparse(input_url)
+        domain = parsed_url.netloc if parsed_url.netloc else input_url.split('/')[0]
     
-    # DNSDumpster Analysis
-    st.write("🔍 Performing DNS enumeration...")
-    dns_data = query_dnsdumpster(domain)
-    if dns_data:
-        findings = analyze_dns_data(dns_data)
-        
-        if findings['subdomains']:
-            st.write("📡 Discovered Subdomains:")
-            for subdomain in findings['subdomains']:
-                st.write(f"- {subdomain}")
-                
-        if findings['ip_addresses']:
-            st.write("🌐 Associated IP Addresses:")
-            for ip in findings['ip_addresses']:
-                st.write(f"- {ip}")
-                
-        if findings['potential_apis']:
-            st.write("🔌 Potential API Endpoints:")
-            for api in findings['potential_apis']:
-                st.write(f"- {api}")
-                # Additional API endpoint fuzzing
-                api_results = test_api_endpoints(api)
-                if api_results:
-                    st.write("  Found active endpoints:")
-                    for endpoint in api_results:
-                        st.write(f"  - {endpoint}")
-
-    # Initialize MISP
-    misp = initialize_misp()
-    
-    # MISP Threat Intelligence Check
-    if misp:
-        st.write("Checking MISP threat intelligence database...")
-        try:
-            input_type = identify_input_type(input_url)
-            results = misp.search(controller='attributes', value=input_url, type=input_type)
+        # DNSDumpster Analysis
+        st.write("🔍 Performing DNS enumeration...")
+        dns_data = query_dnsdumpster(domain)
+        if dns_data:
+            findings = analyze_dns_data(dns_data)
             
-            if results:
-                st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
-                for result in results:
-                    if 'Event' in result:
-                        st.write(f"- Event ID: {result['Event']['id']}")
-                        st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
-                        st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
-                        st.write("---")
-            else:
-                st.success("✅ No matches found in MISP database")
-        except Exception as e:
-            st.error(f"MISP lookup failed: {str(e)}")
+            if findings['subdomains']:
+                st.write("📡 Discovered Subdomains:")
+                for subdomain in findings['subdomains']:
+                    st.write(f"- {subdomain}")
+                    
+            if findings['ip_addresses']:
+                st.write("🌐 Associated IP Addresses:")
+                for ip in findings['ip_addresses']:
+                    st.write(f"- {ip}")
+                    
+            if findings['potential_apis']:
+                st.write("🔌 Potential API Endpoints:")
+                for api in findings['potential_apis']:
+                    st.write(f"- {api}")
+                    # Additional API endpoint fuzzing
+                    api_results = test_api_endpoints(api)
+                    if api_results:
+                        st.write("  Found active endpoints:")
+                        for endpoint in api_results:
+                            st.write(f"  - {endpoint}")
 
-    # URL Status Check and Brute Force
-    final_url = input_url
-    if input_url.endswith("404/"):
-        final_url = input_url.rsplit("404/", 1)[0]
-        st.write(f"{input_url} - Removed '404/': {final_url}")
+        # Initialize MISP
+        misp = initialize_misp()
+        
+        # MISP Threat Intelligence Check
+        if misp:
+            st.write("Checking MISP threat intelligence database...")
+            try:
+                input_type = identify_input_type(input_url)
+                results = misp.search(controller='attributes', value=input_url, type=input_type)
+                
+                if results:
+                    st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
+                    for result in results:
+                        if 'Event' in result:
+                            st.write(f"- Event ID: {result['Event']['id']}")
+                            st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
+                            st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
+                            st.write("---")
+                else:
+                    st.success("✅ No matches found in MISP database")
+            except Exception as e:
+                st.error(f"MISP lookup failed: {str(e)}")
 
-    response = requests.get(final_url)
-    if response.status_code == 200:
-        st.write(f"{final_url} Status: 200 (OK) - The website is live and running")
-    else:
-        st.write(f"{final_url} Status: {response.status_code} - The website may have issues")
+        # URL Status Check and Brute Force
+        final_url = input_url
+        if input_url.endswith("404/"):
+            final_url = input_url.rsplit("404/", 1)[0]
+            st.write(f"{input_url} - Removed '404/': {final_url}")
 
-    if check_404(final_url):
-        st.write(f"{final_url} Status: 404 (Not Found) - Initiating Brute Force")
-        possible_urls = brute_force_url(final_url)
-        if possible_urls:
-            final_url = possible_urls[0]
-            st.write(f"Brute-forced URL: {final_url}")
+        response = requests.get(final_url)
+        if response.status_code == 200:
+            st.write(f"{final_url} Status: 200 (OK) - The website is live and running")
         else:
-            st.write("No valid URLs found based on the wordlist")
+            st.write(f"{final_url} Status: {response.status_code} - The website may have issues")
 
-except requests.RequestException as e:
-    st.write(f"Connection error: {str(e)}")
-except Exception as e:
-    st.error(f"An error occurred: {str(e)}")
+        if check_404(final_url):
+            st.write(f"{final_url} Status: 404 (Not Found) - Initiating Brute Force")
+            possible_urls = brute_force_url(final_url)
+            if possible_urls:
+                final_url = possible_urls[0]
+                st.write(f"Brute-forced URL: {final_url}")
+            else:
+                st.write("No valid URLs found based on the wordlist")
+
+    except requests.RequestException as e:
+        st.write(f"Connection error: {str(e)}")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
 
     # Function to brute force valid URLs
     def brute_force_url(base_url):
