@@ -7,3 +7,5 @@ requests
 ipwhois
 scikit-learn
 xgboost
+pymisp
+validators
