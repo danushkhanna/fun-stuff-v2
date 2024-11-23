@@ -16,6 +16,8 @@ from urllib.parse import urljoin
 from pymisp import PyMISP
 import re
 import validators
+import json
+import urllib.parse
 
 # Load images
 image2 = Image.open('webguard.jpg')
@@ -39,6 +41,66 @@ st.markdown(
 
 # Caching the phishing URL detection model
 @st.cache_resource
+
+
+def initialize_dnsdumpster():
+    try:
+        api_key = st.secrets["DNSDUMPSTER_API_KEY"]
+        return api_key
+    except Exception as e:
+        st.error(f"Failed to initialize DNSDumpster: {str(e)}")
+        return None
+
+
+def query_dnsdumpster(domain):
+    api_key = initialize_dnsdumpster()
+    if not api_key:
+        return None
+    
+    headers = {
+        'X-API-Key': api_key
+    }
+    
+    try:
+        response = requests.get(
+            f'https://api.dnsdumpster.com/domain/{domain}',
+            headers=headers
+        )
+        return response.json() if response.status_code == 200 else None
+    except Exception as e:
+        st.error(f"DNSDumpster API error: {str(e)}")
+        return None
+    
+
+def analyze_dns_data(dns_data):
+    findings = {
+        'subdomains': set(),
+        'ip_addresses': set(),
+        'potential_apis': set()
+    }
+    
+    if not dns_data:
+        return findings
+    
+    # Extract A records
+    for record in dns_data.get('a', []):
+        findings['subdomains'].add(record['host'])
+        for ip_info in record['ips']:
+            findings['ip_addresses'].add(ip_info['ip'])
+            # Check for API endpoints in banners
+            if 'banners' in ip_info:
+                for protocol in ['http', 'https']:
+                    if protocol in ip_info['banners']:
+                        banner = ip_info['banners'][protocol]
+                        if 'api' in banner.get('title', '').lower():
+                            findings['potential_apis'].add(f"{protocol}://{ip_info['ip']}")
+
+    # Extract CNAME records
+    for record in dns_data.get('cname', []):
+        findings['subdomains'].add(record['host'])
+        
+    return findings
+
 
 def initialize_misp():
     try:
@@ -150,28 +212,60 @@ def discover_subdomains(domain):
 # Takes in user input
 input_url = st.text_area("Enter URL, IP, Domain, or Email for security analysis:")
 if input_url != "":
-    # Initialize MISP
-    misp = initialize_misp()
-    
-    # MISP Threat Intelligence Check
-    if misp:
-        st.write("Checking MISP threat intelligence database...")
-        try:
-            input_type = identify_input_type(input_url)
-            results = misp.search(controller='attributes', value=input_url, type=input_type)
+    # Extract domain for DNS analysis
+    try:
+        parsed_url = urllib.parse.urlparse(input_url)
+        domain = parsed_url.netloc if parsed_url.netloc else input_url.split('/')[0]
+        
+        # DNSDumpster Analysis
+        st.write("🔍 Performing DNS enumeration...")
+        dns_data = query_dnsdumpster(domain)
+        if dns_data:
+            findings = analyze_dns_data(dns_data)
             
-            if results:
-                st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
-                for result in results:
-                    if 'Event' in result:
-                        st.write(f"- Event ID: {result['Event']['id']}")
-                        st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
-                        st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
-                        st.write("---")
-            else:
-                st.success("✅ No matches found in MISP database")
-        except Exception as e:
-            st.error(f"MISP lookup failed: {str(e)}")
+            if findings['subdomains']:
+                st.write("📡 Discovered Subdomains:")
+                for subdomain in findings['subdomains']:
+                    st.write(f"- {subdomain}")
+                    
+            if findings['ip_addresses']:
+                st.write("🌐 Associated IP Addresses:")
+                for ip in findings['ip_addresses']:
+                    st.write(f"- {ip}")
+                    
+            if findings['potential_apis']:
+                st.write("🔌 Potential API Endpoints:")
+                for api in findings['potential_apis']:
+                    st.write(f"- {api}")
+                    # Additional API endpoint fuzzing
+                    api_results = test_api_endpoints(api)
+                    if api_results:
+                        st.write("  Found active endpoints:")
+                        for endpoint in api_results:
+                            st.write(f"  - {endpoint}")
+
+        # Initialize MISP
+        misp = initialize_misp()
+        
+        # MISP Threat Intelligence Check
+        if misp:
+            st.write("Checking MISP threat intelligence database...")
+            try:
+                input_type = identify_input_type(input_url)
+                results = misp.search(controller='attributes', value=input_url, type=input_type)
+                
+                if results:
+                    st.warning("🚨 MISP Alert: This indicator is associated with known threats!")
+                    for result in results:
+                        if 'Event' in result:
+                            st.write(f"- Event ID: {result['Event']['id']}")
+                            st.write(f"- Threat Level: {result['Event']['threat_level_id']}")
+                            st.write(f"- Description: {result['Event'].get('info', 'No description available')}")
+                            st.write("---")
+                else:
+                    st.success("✅ No matches found in MISP database")
+            except Exception as e:
+                st.error(f"MISP lookup failed: {str(e)}")
 
     features_url = ExtractFeatures().url_to_features(url=input_url)
 
